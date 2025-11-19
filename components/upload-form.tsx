@@ -154,7 +154,9 @@ export default function UploadForm({ isPreview = false }: { isPreview?: boolean 
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle>File Upload</CardTitle>
-                        <CardDescription>Please fill in your details and upload your file.</CardDescription>
+                        <CardDescription>
+                            {config?.description || "Please fill in your details and upload your file."}
+                        </CardDescription>
                     </CardHeader>
                     <form onSubmit={handleUpload}>
                         <CardContent className="space-y-6">

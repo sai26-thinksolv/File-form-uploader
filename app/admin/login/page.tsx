@@ -8,10 +8,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Lock } from "lucide-react"
 
 export default function AdminLoginPage() {
+    const [step, setStep] = useState<"email" | "password">("email")
+    const [mode, setMode] = useState<"login" | "signup">("login")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const router = useRouter()
+
+    const handleContinue = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (email) {
+            setStep("password")
+        }
+    }
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -24,47 +33,107 @@ export default function AdminLoginPage() {
         }, 1000)
     }
 
+    const toggleMode = () => {
+        setMode(mode === "login" ? "signup" : "login")
+        setStep("email")
+        setPassword("")
+    }
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-            <Card className="w-full max-w-md shadow-lg">
-                <CardHeader className="space-y-1 text-center">
-                    <div className="flex justify-center mb-4">
-                        <div className="p-3 bg-primary/10 rounded-full">
-                            <Lock className="w-6 h-6 text-primary" />
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
+            <Card className="w-full max-w-md shadow-xl border-0">
+                <CardHeader className="space-y-1 text-center pb-2">
+                    <div className="flex justify-center mb-6">
+                        <div className="bg-indigo-600 p-2 rounded-lg shadow-sm">
+                            <Lock className="w-6 h-6 text-white" />
                         </div>
                     </div>
-                    <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
-                    <CardDescription>
-                        Enter your credentials to access the dashboard
+                    <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
+                        {mode === "login" ? "Welcome back" : "Create an account"}
+                    </CardTitle>
+                    <CardDescription className="text-gray-500">
+                        {mode === "login"
+                            ? "Enter your email to sign in to your account"
+                            : "Enter your email to get started"}
                     </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleLogin}>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Input
-                                type="email"
-                                placeholder="Email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
+                <CardContent className="space-y-4 pt-4">
+                    <Button variant="outline" className="w-full h-11 font-medium text-gray-700 border-gray-300 hover:bg-gray-50" type="button">
+                        <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                        Sign {mode === "login" ? "in" : "up"} with Google
+                    </Button>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-gray-200" />
                         </div>
-                        <div className="space-y-2">
-                            <Input
-                                type="password"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-white px-2 text-gray-500">Or continue with</span>
                         </div>
-                    </CardContent>
-                    <CardFooter>
-                        <Button className="w-full" type="submit" disabled={isLoading}>
-                            {isLoading ? "Signing in..." : "Sign In"}
+                    </div>
+
+                    <form onSubmit={step === "email" ? handleContinue : handleLogin} className="space-y-4">
+                        <div className="space-y-2">
+                            {step === "email" ? (
+                                <div className="space-y-1">
+                                    <Input
+                                        type="email"
+                                        placeholder="name@example.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        className="h-11"
+                                        autoFocus
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <div className="flex items-center justify-between p-2 border rounded-md bg-gray-50">
+                                        <span className="text-sm text-gray-600 font-medium">{email}</span>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setStep("email")}
+                                            className="text-indigo-600 hover:text-indigo-700 h-auto p-0 px-2 font-medium"
+                                            type="button"
+                                        >
+                                            Edit
+                                        </Button>
+                                    </div>
+                                    <Input
+                                        type="password"
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        className="h-11"
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        <Button className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold" type="submit" disabled={isLoading}>
+                            {isLoading
+                                ? "Processing..."
+                                : step === "email"
+                                    ? "Continue"
+                                    : mode === "login" ? "Sign In" : "Create Account"
+                            }
                         </Button>
-                    </CardFooter>
-                </form>
+                    </form>
+                </CardContent>
+                <CardFooter className="flex justify-center pb-6">
+                    <div className="text-sm text-gray-500">
+                        {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+                        <button
+                            onClick={toggleMode}
+                            className="font-semibold text-indigo-600 hover:text-indigo-500 hover:underline focus:outline-none"
+                        >
+                            {mode === "login" ? "Sign up" : "Log in"}
+                        </button>
+                    </div>
+                </CardFooter>
             </Card>
         </div>
     )

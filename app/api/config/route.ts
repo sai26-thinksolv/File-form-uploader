@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server'
 
 // Mock Data Store (in memory for now, would be DB in real app)
 let config = {
-    maxSizeMB: 5,
+    id: "ref-123",
+    name: "General Upload Form",
+    description: "Please upload your project files here. Supported formats: PDF, PNG, JPG.",
+    maxSizeMB: 100,
     allowedTypes: ['image/png', 'image/jpeg', 'application/pdf'],
-    isPasswordProtected: false,
-    password: "admin",
+    isPasswordProtected: true,
+    password: "password123", // Mock password
     isCaptchaEnabled: false,
     enableSubmitAnother: true,
     design: {
-        primaryColor: "#000000",
-        backgroundColor: "#f3f4f6",
+        primaryColor: "#4f46e5",
+        backgroundColor: "#ffffff",
         fontFamily: "Inter",
         logoUrl: null
     }
