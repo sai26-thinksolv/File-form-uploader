@@ -267,13 +267,17 @@ export default function UploadForm({ isPreview = false, formId, initialData }: {
                 if (file) {
                     const formData = new FormData()
                     formData.append('file', file)
+                    if (formId) formData.append('formId', formId)
 
                     const uploadRes = await fetch('/api/upload', {
                         method: 'POST',
                         body: formData
                     })
 
-                    if (!uploadRes.ok) throw new Error(`Upload failed for ${field.label}`)
+                    if (!uploadRes.ok) {
+                        const errorData = await uploadRes.json()
+                        throw new Error(errorData.details || errorData.error || `Upload failed for ${field.label}`)
+                    }
                     const uploadData = await uploadRes.json()
 
                     uploadedFiles.push({

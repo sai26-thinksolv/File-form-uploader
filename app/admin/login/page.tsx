@@ -1,19 +1,27 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { signIn, useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Lock } from "lucide-react"
 
 export default function AdminLoginPage() {
+    const { data: session, status } = useSession()
     const [step, setStep] = useState<"email" | "password">("email")
     const [mode, setMode] = useState<"login" | "signup">("login")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const router = useRouter()
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            router.push("/admin/dashboard")
+        }
+    }, [status, router])
 
     const handleContinue = (e: React.FormEvent) => {
         e.preventDefault()
@@ -39,6 +47,20 @@ export default function AdminLoginPage() {
         setPassword("")
     }
 
+    const handleGoogleSignIn = async () => {
+        setIsLoading(true)
+        try {
+            // For OAuth providers, let NextAuth handle the redirect
+            // redirect: false doesn't work properly with OAuth flows
+            await signIn("google", {
+                callbackUrl: "/admin/dashboard"
+            })
+        } catch (error) {
+            console.error("Google sign-in exception:", error)
+            setIsLoading(false)
+        }
+    }
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
             <Card className="w-full max-w-md shadow-xl border-0">
@@ -58,9 +80,15 @@ export default function AdminLoginPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-4">
-                    <Button variant="outline" className="w-full h-11 font-medium text-gray-700 border-gray-300 hover:bg-gray-50" type="button">
+                    <Button
+                        variant="outline"
+                        className="w-full h-11 font-medium text-gray-700 border-gray-300 hover:bg-gray-50"
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        disabled={isLoading}
+                    >
                         <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
-                        Sign {mode === "login" ? "in" : "up"} with Google
+                        {isLoading ? "Signing in..." : `Sign ${mode === "login" ? "in" : "up"} with Google`}
                     </Button>
 
                     <div className="relative">

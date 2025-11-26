@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
     try {
+        const session = await getServerSession(authOptions);
+
+        if (!session || !session.user || !session.user.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await request.json();
         const {
             title,
@@ -24,10 +32,16 @@ export async function POST(request: Request) {
             fontFamily,
             accessLevel,
             allowedEmails,
+            emailFieldControl,
             buttonTextColor,
             cardStyle,
             borderRadius,
-            coverImageUrl
+            coverImageUrl,
+            driveFolderId,
+            driveFolderName,
+            driveFolderUrl,
+            uploadFields,
+            customQuestions
         } = body;
 
         const form = await prisma.form.create({
@@ -37,6 +51,9 @@ export async function POST(request: Request) {
                 allowedTypes,
                 maxSizeMB,
                 driveEnabled,
+                driveFolderId,
+                driveFolderName,
+                driveFolderUrl,
                 isAcceptingResponses,
                 expiryDate,
                 enableMetadataSpreadsheet,
@@ -49,12 +66,14 @@ export async function POST(request: Request) {
                 fontFamily,
                 accessLevel,
                 allowedEmails,
+                emailFieldControl,
                 buttonTextColor,
                 cardStyle,
                 borderRadius,
                 coverImageUrl,
-                uploadFields: undefined, // Explicitly set to undefined if not present to avoid type issues
-                customQuestions: undefined
+                uploadFields: uploadFields ? JSON.stringify(uploadFields) : JSON.stringify([]),
+                customQuestions: customQuestions ? JSON.stringify(customQuestions) : JSON.stringify([]),
+                userId: session.user.id // Link to user
             } as any,
         });
 
@@ -70,9 +89,18 @@ export async function POST(request: Request) {
 
 export async function GET() {
     try {
+        const session = await getServerSession(authOptions);
+
+        if (!session || !session.user || !session.user.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const forms = await prisma.form.findMany({
+            where: {
+                userId: session.user.id
+            },
             orderBy: { createdAt: 'desc' },
-        });
+        } as any);
         return NextResponse.json(forms);
     } catch (error) {
         console.error('Error fetching forms:', error);

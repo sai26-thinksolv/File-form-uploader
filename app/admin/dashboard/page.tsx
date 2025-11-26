@@ -2,12 +2,17 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Plus, FileText, Loader2, ExternalLink, AlertTriangle, X, CheckCircle } from "lucide-react"
 
 export default function AdminDashboard() {
+    const { data: session, status } = useSession()
+    const router = useRouter()
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [forms, setForms] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -23,17 +28,35 @@ export default function AdminDashboard() {
         type: 'error'
     })
 
+    // Check authentication status
     useEffect(() => {
-        fetchForms()
-    }, [])
+        if (status === "unauthenticated") {
+            router.push("/admin/login")
+        }
+    }, [status, router])
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            fetchForms()
+        }
+    }, [status])
 
     const fetchForms = async () => {
         try {
             const res = await fetch('/api/forms')
+            if (!res.ok) {
+                throw new Error('Failed to fetch forms')
+            }
             const data = await res.json()
-            setForms(data)
+            if (Array.isArray(data)) {
+                setForms(data)
+            } else {
+                console.error('API returned non-array data:', data)
+                setForms([])
+            }
         } catch (error) {
             console.error('Failed to fetch forms', error)
+            setForms([])
         } finally {
             setLoading(false)
         }
@@ -124,7 +147,7 @@ export default function AdminDashboard() {
                 </Link>
             </div>
 
-            {loading ? (
+            {status === "loading" || loading ? (
                 <div className="flex justify-center items-center min-h-[200px]">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>

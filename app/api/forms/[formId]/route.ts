@@ -41,12 +41,21 @@ export async function PUT(
         // Remove readonly/computed fields that shouldn't be updated
         const { id, createdAt, updatedAt, submissions, ...updateData } = body;
 
-        // Ensure JSON fields have proper defaults
-        if ('uploadFields' in updateData && !updateData.uploadFields) {
-            updateData.uploadFields = [];
+        // Ensure JSON fields have proper defaults and are stringified for SQLite
+        if ('uploadFields' in updateData) {
+            if (!updateData.uploadFields) {
+                updateData.uploadFields = JSON.stringify([]);
+            } else if (typeof updateData.uploadFields !== 'string') {
+                updateData.uploadFields = JSON.stringify(updateData.uploadFields);
+            }
         }
-        if ('customQuestions' in updateData && !updateData.customQuestions) {
-            updateData.customQuestions = [];
+
+        if ('customQuestions' in updateData) {
+            if (!updateData.customQuestions) {
+                updateData.customQuestions = JSON.stringify([]);
+            } else if (typeof updateData.customQuestions !== 'string') {
+                updateData.customQuestions = JSON.stringify(updateData.customQuestions);
+            }
         }
 
         const form = await prisma.form.update({

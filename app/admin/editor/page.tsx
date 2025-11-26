@@ -27,6 +27,9 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { QRCodeCanvas } from "qrcode.react"
+import { AccessTab } from './components/AccessTab';
+import { GooglePickerFolderSelect } from './components/GooglePickerFolderSelect';
+import { EditorFormData } from './types';
 
 function EditorContent() {
     const searchParams = useSearchParams()
@@ -54,13 +57,17 @@ function EditorContent() {
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [isSaving, setIsSaving] = useState(false)
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<EditorFormData>({
+        id: "",
         title: "New Form",
         description: "",
         allowedTypes: "any",
         maxSizeMB: 100,
-        driveEnabled: false,
-        isAcceptingResponses: false,
+        driveEnabled: true,
+        driveFolderId: "",
+        driveFolderUrl: "",
+        driveFolderName: "",
+        isAcceptingResponses: true,
         expiryDate: null as string | null,
         enableMetadataSpreadsheet: false,
         subfolderOrganization: "NONE",
@@ -68,16 +75,19 @@ function EditorContent() {
         enableSmartGrouping: false,
         logoUrl: "",
         primaryColor: "#4f46e5",
-        backgroundColor: "#ffffff",
+        secondaryColor: "#ffffff",
+        backgroundColor: "#f3f4f6",
         fontFamily: "Inter",
         accessLevel: "ANYONE",
         allowedEmails: "",
+        emailFieldControl: "OPTIONAL",
         uploadFields: [] as any[],
         customQuestions: [] as any[],
         buttonTextColor: "#ffffff",
         cardStyle: "shadow",
         borderRadius: "md",
         coverImageUrl: "",
+        isPublished: false,
     })
 
     const updateField = (field: string, value: any) => {
@@ -369,24 +379,7 @@ function EditorContent() {
 
                                         {formData.driveEnabled && (
                                             <div className="mt-4 p-4 border border-indigo-100 rounded-xl bg-indigo-50/30 animate-in fade-in slide-in-from-top-2">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center border border-gray-100">
-                                                            <svg className="w-6 h-6" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-                                                                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.9 2.5 3.2 3.3l-13.65-23.65c-.5-1-.8-2.1-.8-3.15h27.9l-13.1 22.75c-2.85-1.65-5.2-4.1-6.6-6.95z" fill="#0066da" />
-                                                                <path d="m43.65 25-13.9-24.2c-.95-.5-2.1-.8-3.15-.8h-26.6c2.85 0 5.7.8 8.15 2.3l49.25 28.45z" fill="#00ac47" />
-                                                                <path d="m73.55 76.8c4.75-2.75 8.15-7.3 9.45-12.6l-14.5-25.1h-27.9l13.1 22.75c2.85 4.9 7.9 8.45 13.55 11.75z" fill="#ea4335" />
-                                                                <path d="m43.65 25 13.9-24.2c4.75 2.75 8.15 7.3 9.45 12.6l-13.65 23.65h-27.9z" fill="#00832d" />
-                                                                <path d="m59.9 53.2-16.25 28.45c-1.15.65-2.35 1.15-3.65 1.5l13.65-23.65c2.85-1.65 5.2-4.1 6.6-6.95z" fill="#2684fc" />
-                                                                <path d="m79.4 22.6c-1.3-5.3-4.7-9.85-9.45-12.6l-14.5 25.1 13.65 23.65c1.3-5.3 4.7-9.85 9.45-12.6z" fill="#ffba00" />
-                                                            </svg>
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-medium text-gray-900">{formData.title || "Untitled Form"}</div>
-                                                            <div className="text-xs text-gray-500">Target Folder</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <GooglePickerFolderSelect formData={formData} updateField={updateField} />
                                             </div>
                                         )}
                                     </div>
@@ -608,10 +601,41 @@ function EditorContent() {
                                             <div className="space-y-3">
                                                 <Label>Subfolder Name Pattern</Label>
                                                 <Input
-                                                    value={formData.customSubfolderField || "{Date} {Uploader Name}"}
+                                                    value={formData.customSubfolderField ?? "{Date} {Uploader Name}"}
                                                     onChange={(e) => updateField('customSubfolderField', e.target.value)}
                                                     className="font-mono text-sm text-indigo-600"
                                                 />
+                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                    {['{Date}', '{Uploader Name}', '{Form Title}', '{Email}'].map((tag) => {
+                                                        const currentVal = formData.customSubfolderField ?? "{Date} {Uploader Name}";
+                                                        const isSelected = currentVal.includes(tag);
+
+                                                        return (
+                                                            <Button
+                                                                key={tag}
+                                                                variant="outline"
+                                                                size="sm"
+                                                                type="button"
+                                                                className={`h-7 text-xs transition-all ${isSelected
+                                                                        ? "bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200"
+                                                                        : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 hover:text-gray-900"
+                                                                    }`}
+                                                                onClick={() => {
+                                                                    let newVal;
+                                                                    if (isSelected) {
+                                                                        newVal = currentVal.replace(tag, '').replace(/\s\s+/g, ' ').trim();
+                                                                    } else {
+                                                                        newVal = (currentVal + ' ' + tag).trim();
+                                                                    }
+                                                                    updateField('customSubfolderField', newVal);
+                                                                }}
+                                                            >
+                                                                {isSelected ? <X className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                                                                {tag}
+                                                            </Button>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -620,95 +644,9 @@ function EditorContent() {
                         )}
 
                         {/* Step 3: Availability & Access */}
+                        {/* Step 3: Availability & Access */}
                         {currentStep === 3 && (
-                            <Card className="shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
-                                <CardHeader>
-                                    <CardTitle className="text-lg">Availability & Access</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-0.5">
-                                            <Label className="text-sm">Accept Responses</Label>
-                                            <p className="text-sm text-muted-foreground">Enable file uploads.</p>
-                                        </div>
-                                        <Switch
-                                            checked={formData.isAcceptingResponses}
-                                            onCheckedChange={(c) => updateField('isAcceptingResponses', c)}
-                                            className="data-[state=checked]:bg-indigo-600"
-                                        />
-                                    </div>
-
-                                    {formData.isAcceptingResponses && (
-                                        <>
-                                            <div className="border-t border-gray-100"></div>
-                                            <div className="flex items-center justify-between">
-                                                <div className="space-y-0.5">
-                                                    <Label className="text-sm">Link Expiry</Label>
-                                                    <p className="text-sm text-muted-foreground">Auto-close after date.</p>
-                                                </div>
-                                                <Switch
-                                                    checked={!!formData.expiryDate}
-                                                    onCheckedChange={(c) => updateField('expiryDate', c ? new Date().toISOString().slice(0, 16) : null)}
-                                                    className="data-[state=checked]:bg-indigo-600"
-                                                />
-                                            </div>
-                                            {formData.expiryDate && (
-                                                <div className="pl-4 border-l-2 border-indigo-100 flex flex-wrap gap-3">
-                                                    <Input
-                                                        type="datetime-local"
-                                                        value={formData.expiryDate.slice(0, 16)}
-                                                        onChange={(e) => updateField('expiryDate', e.target.value)}
-                                                        className="w-full sm:w-auto"
-                                                    />
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    <div className="border-t border-gray-100"></div>
-
-                                    <div className="space-y-4">
-                                        <Label className="text-sm font-medium text-gray-700">Who can respond?</Label>
-                                        <RadioGroup
-                                            value={formData.accessLevel}
-                                            onValueChange={(val) => updateField('accessLevel', val)}
-                                            className="grid grid-cols-2 gap-4"
-                                        >
-                                            <div className={`relative flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${formData.accessLevel === 'ANYONE' ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                                <RadioGroupItem value="ANYONE" id="anyone" className="mt-1" />
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="anyone" className="font-medium cursor-pointer">Public</Label>
-                                                    <p className="text-xs text-muted-foreground">Anyone with the link</p>
-                                                </div>
-                                            </div>
-                                            <div className={`relative flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${formData.accessLevel === 'INVITED' ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                                <RadioGroupItem value="INVITED" id="invited" className="mt-1" />
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="invited" className="font-medium cursor-pointer">Restricted</Label>
-                                                    <p className="text-xs text-muted-foreground">Invited people only</p>
-                                                </div>
-                                            </div>
-                                        </RadioGroup>
-
-                                        {formData.accessLevel === 'INVITED' && (
-                                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                                                <Label className="text-sm font-medium text-gray-700">Email Invitations</Label>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        placeholder="Enter email addresses (comma separated)"
-                                                        value={formData.allowedEmails}
-                                                        onChange={(e) => updateField('allowedEmails', e.target.value)}
-                                                    />
-                                                    <Button size="icon" variant="outline">
-                                                        <Mail className="w-4 h-4" />
-                                                    </Button>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">Only these email addresses will be able to access the form.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <AccessTab formData={formData} updateField={updateField} />
                         )}
 
                         {/* Wizard Navigation */}
