@@ -37,6 +37,22 @@ export interface EditorFormData {
     coverImageUrl: string;
 
     // Dynamic Fields
-    uploadFields: any[];
-    customQuestions: any[];
+    uploadFields: UploadField[];
+    customQuestions: CustomQuestion[];
+}
+
+export interface UploadField {
+    id: string;
+    label: string;
+    allowedTypes: string;
+    maxSizeMB: number;
+    required: boolean;
+}
+
+export interface CustomQuestion {
+    id: string;
+    type: string;
+    label: string;
+    required: boolean;
+    options?: string[];
 }

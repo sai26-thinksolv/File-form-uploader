@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
                     response_type: "code",
                     scope: "openid email profile https://www.googleapis.com/auth/drive.file",
                     // Default to select_account, but can be overridden
-                    prompt: "select_account"
+                    prompt: "consent"
                 }
             }
         }),
@@ -26,6 +26,35 @@ export const authOptions: NextAuthOptions = {
         strategy: "jwt",
     },
     callbacks: {
+        async signIn({ user, account }) {
+            if (account?.provider === 'google') {
+                try {
+                    // Manually update the account tokens to ensure we capture the refresh token
+                    // This is sometimes needed if the adapter doesn't update on re-login
+                    const existingAccount = await prisma.account.findFirst({
+                        where: {
+                            userId: user.id,
+                            provider: 'google'
+                        }
+                    });
+
+                    if (existingAccount) {
+                        await prisma.account.update({
+                            where: { id: existingAccount.id },
+                            data: {
+                                access_token: account.access_token,
+                                expires_at: account.expires_at,
+                                refresh_token: account.refresh_token || existingAccount.refresh_token, // Keep existing if new one is null
+                                id_token: account.id_token,
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error updating Google account tokens:", error);
+                }
+            }
+            return true;
+        },
         async session({ session, token }) {
             if (session.user && token.sub) {
                 session.user.id = token.sub

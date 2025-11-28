@@ -9,7 +9,7 @@ import { EditorFormData } from "../types";
 
 interface GooglePickerFolderSelectProps {
     formData: EditorFormData;
-    updateField: (field: string, value: any) => void;
+    updateField: <K extends keyof EditorFormData>(field: K, value: EditorFormData[K]) => void;
 }
 
 declare global {
@@ -97,9 +97,9 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
     };
 
     const clearFolder = () => {
-        updateField('driveFolderId', null);
-        updateField('driveFolderName', null);
-        updateField('driveFolderUrl', null);
+        updateField('driveFolderId', "");
+        updateField('driveFolderName', "");
+        updateField('driveFolderUrl', "");
     };
 
     return (

@@ -11,7 +11,7 @@ import { EditorFormData } from "../types";
 
 interface AccessTabProps {
     formData: EditorFormData;
-    updateField: (field: string, value: any) => void;
+    updateField: <K extends keyof EditorFormData>(field: K, value: EditorFormData[K]) => void;
 }
 
 export function AccessTab({ formData, updateField }: AccessTabProps) {
@@ -56,7 +56,7 @@ export function AccessTab({ formData, updateField }: AccessTabProps) {
                     <Label className="text-sm font-medium text-gray-700">Who can respond?</Label>
                     <RadioGroup
                         value={formData.accessLevel}
-                        onValueChange={(val) => updateField('accessLevel', val)}
+                        onValueChange={(val) => updateField('accessLevel', val as "ANYONE" | "INVITED")}
                         className="grid grid-cols-2 gap-4"
                     >
                         <div className={`relative flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${formData.accessLevel === 'ANYONE' ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
@@ -105,7 +105,7 @@ export function AccessTab({ formData, updateField }: AccessTabProps) {
                         <div className="w-[180px]">
                             <Select
                                 value={formData.emailFieldControl || "OPTIONAL"}
-                                onValueChange={(val) => updateField('emailFieldControl', val)}
+                                onValueChange={(val) => updateField('emailFieldControl', val as "REQUIRED" | "OPTIONAL" | "NOT_INCLUDED")}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -120,7 +120,7 @@ export function AccessTab({ formData, updateField }: AccessTabProps) {
                     </div>
                 </div>
 
-            </CardContent>
-        </Card>
+            </CardContent >
+        </Card >
     );
 }

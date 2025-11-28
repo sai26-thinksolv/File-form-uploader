@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Upload, Link2, Copy, Check, ArrowLeft, ChevronRight, Loader2, Globe, Mail, QrCode, Trash2, Plus, GripVertical, AlertTriangle, X, CheckCircle } from "lucide-react"
+import { Save, Upload, Link2, Copy, Check, ArrowLeft, ChevronRight, Loader2, Globe, Mail, QrCode, Trash2, Plus, GripVertical, X, FilePlus, Eye } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -29,14 +29,15 @@ import {
 import { QRCodeCanvas } from "qrcode.react"
 import { AccessTab } from './components/AccessTab';
 import { GooglePickerFolderSelect } from './components/GooglePickerFolderSelect';
-import { EditorFormData } from './types';
+import { BrandLoader } from './components/BrandLoader';
+import { EditorFormData, UploadField, CustomQuestion } from './types';
 
 function EditorContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const formId = searchParams.get("id")
 
-    const [currentTab, setCurrentTab] = useState(searchParams.get("tab") || "configuration")
+
     const [isPublishOpen, setIsPublishOpen] = useState(false)
     const [copied, setCopied] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -81,8 +82,8 @@ function EditorContent() {
         accessLevel: "ANYONE",
         allowedEmails: "",
         emailFieldControl: "OPTIONAL",
-        uploadFields: [] as any[],
-        customQuestions: [] as any[],
+        uploadFields: [] as UploadField[],
+        customQuestions: [] as CustomQuestion[],
         buttonTextColor: "#ffffff",
         cardStyle: "shadow",
         borderRadius: "md",
@@ -90,17 +91,14 @@ function EditorContent() {
         isPublished: false,
     })
 
-    const updateField = (field: string, value: any) => {
+    const [isDraggingLogo, setIsDraggingLogo] = useState(false)
+    const [isDraggingCover, setIsDraggingCover] = useState(false)
+
+    const updateField = <K extends keyof EditorFormData>(field: K, value: EditorFormData[K]) => {
         setFormData(prev => ({ ...prev, [field]: value }))
     }
 
-    const switchTab = (tab: string) => {
-        setCurrentTab(tab)
-        const url = new URL(window.location.href)
-        url.searchParams.set('tab', tab)
-        window.history.pushState({}, '', url.toString())
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+
 
     const showMessage = (title: string, message: string, type: 'success' | 'error' = 'error') => {
         setMessageModal({ isOpen: true, title, message, type })
@@ -187,31 +185,96 @@ function EditorContent() {
         }
     }
 
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-
+    const uploadAsset = async (file: File, field: 'logoUrl' | 'coverImageUrl') => {
         setLogoUploading(true)
         try {
             const formDataObj = new FormData()
-            formDataObj.append('logo', file)
+            formDataObj.append('file', file)
+            if (formData.driveFolderId) {
+                formDataObj.append('parentFolderId', formData.driveFolderId)
+            }
+            formDataObj.append('formTitle', formData.title || 'Untitled Form')
 
-            const res = await fetch('/api/upload-logo', {
+            const res = await fetch('/api/drive/upload-asset', {
                 method: 'POST',
                 body: formDataObj
             })
 
             if (res.ok) {
                 const data = await res.json()
-                updateField('logoUrl', data.url)
+                updateField(field, data.url)
+
+                // If the API created a new folder and returned its ID, update our state
+                if (data.folderId && !formData.driveFolderId) {
+                    updateField('driveFolderId', data.folderId)
+                    showMessage('Folder Created', `Created new folder "${formData.title || 'Untitled Form'}" for assets.`, 'success')
+                }
             } else {
-                showMessage('Error', 'Logo upload failed', 'error')
+                const err = await res.json()
+                showMessage('Upload Failed', err.error || 'Upload failed', 'error')
             }
         } catch (error) {
             console.error('Upload error:', error)
-            showMessage('Error', 'Logo upload failed', 'error')
+            showMessage('Error', 'Upload failed', 'error')
         } finally {
             setLogoUploading(false)
+        }
+    }
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) uploadAsset(file, 'logoUrl')
+    }
+
+    const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) uploadAsset(file, 'coverImageUrl')
+    }
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+    }
+
+    const handleLogoDragEnter = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDraggingLogo(true)
+    }
+
+    const handleLogoDragLeave = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDraggingLogo(false)
+    }
+
+    const handleCoverDragEnter = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDraggingCover(true)
+    }
+
+    const handleCoverDragLeave = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDraggingCover(false)
+    }
+
+    const handleLogoDrop = (e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDraggingLogo(false)
+
+        const file = e.dataTransfer.files?.[0]
+        if (file && file.type.startsWith('image/')) {
+            uploadAsset(file, 'logoUrl')
+        }
+    }
+
+    const handleCoverDrop = (e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDraggingCover(false)
+
+        const file = e.dataTransfer.files?.[0]
+        if (file && file.type.startsWith('image/')) {
+            uploadAsset(file, 'coverImageUrl')
         }
     }
 
@@ -253,7 +316,7 @@ function EditorContent() {
         updateField('uploadFields', formData.uploadFields.filter(f => f.id !== id))
     }
 
-    const updateUploadFieldItem = (id: string, key: string, value: any) => {
+    const updateUploadFieldItem = <K extends keyof UploadField>(id: string, key: K, value: UploadField[K]) => {
         updateField('uploadFields', formData.uploadFields.map(f =>
             f.id === id ? { ...f, [key]: value } : f
         ))
@@ -274,7 +337,7 @@ function EditorContent() {
         updateField('customQuestions', formData.customQuestions.filter(q => q.id !== id))
     }
 
-    const updateCustomQuestionItem = (id: string, key: string, value: any) => {
+    const updateCustomQuestionItem = <K extends keyof CustomQuestion>(id: string, key: K, value: CustomQuestion[K]) => {
         updateField('customQuestions', formData.customQuestions.map(q =>
             q.id === id ? { ...q, [key]: value } : q
         ))
@@ -425,36 +488,45 @@ function EditorContent() {
                                     {/* Multiple Upload Fields */}
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold">Upload Fields</Label>
+                                            <Label className="text-base font-semibold">File Upload Fields</Label>
                                             <Button variant="outline" size="sm" onClick={addUploadField} disabled={formData.uploadFields.length >= 3}>
                                                 <Plus className="w-4 h-4 mr-2" />
                                                 Add Field
                                             </Button>
                                         </div>
-                                        <div className="space-y-4">
-                                            {formData.uploadFields.map((field, index) => (
-                                                <div key={field.id} className="p-4 border rounded-lg bg-gray-50 space-y-4 relative group">
-                                                    <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => removeUploadField(field.id)}>
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
+                                        {formData.uploadFields.map((field, index) => (
+                                            <div key={field.id} className="group relative flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:shadow-md hover:border-indigo-300">
+                                                <div className="text-gray-300 cursor-move hover:text-gray-500">
+                                                    <GripVertical className="w-5 h-5" />
+                                                </div>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute top-2 right-2 h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => removeUploadField(field.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+
+                                                <div className="flex-1 space-y-4">
                                                     <div className="grid gap-4 sm:grid-cols-2">
-                                                        <div className="space-y-2">
-                                                            <Label>Label</Label>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Field Name</Label>
                                                             <Input
                                                                 value={field.label}
                                                                 onChange={(e) => updateUploadFieldItem(field.id, 'label', e.target.value)}
                                                                 placeholder="e.g. Resume"
+                                                                className="bg-gray-50/50 border-gray-200 focus:bg-white transition-all"
                                                             />
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label>Allowed Types</Label>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Allowed Types</Label>
                                                             <Select
                                                                 value={field.allowedTypes}
                                                                 onValueChange={(val) => updateUploadFieldItem(field.id, 'allowedTypes', val)}
                                                             >
-                                                                <SelectTrigger>
+                                                                <SelectTrigger className="bg-gray-50/50 border-gray-200 focus:bg-white">
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -466,14 +538,28 @@ function EditorContent() {
                                                         </div>
                                                     </div>
                                                 </div>
-                                            ))}
-                                            {formData.uploadFields.length === 0 && (
-                                                <div className="text-center p-8 border-2 border-dashed rounded-lg text-muted-foreground">
-                                                    <p>No upload fields added. Users won't be able to upload files.</p>
-                                                    <Button variant="link" onClick={addUploadField}>Add a field</Button>
+                                            </div>
+                                        ))}
+                                        {formData.uploadFields.length === 0 && (
+                                            <div className="text-center p-10 border border-gray-100 rounded-xl bg-gray-50/50 space-y-3">
+                                                <div className="mx-auto w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-2">
+                                                    <FilePlus className="w-6 h-6 text-indigo-600" />
                                                 </div>
-                                            )}
-                                        </div>
+                                                <h3 className="text-sm font-semibold text-gray-900">No file upload fields added</h3>
+                                                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                                                    Add a field to allow users to upload files.
+                                                </p>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={addUploadField}
+                                                    className="mt-2"
+                                                >
+                                                    <Plus className="w-4 h-4 mr-2" />
+                                                    Add Field
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="border-t border-gray-100"></div>
@@ -492,96 +578,72 @@ function EditorContent() {
                                         </div>
                                         <div className="space-y-4">
                                             {formData.customQuestions.map((q, index) => (
-                                                <div key={q.id} className="p-4 border rounded-lg bg-gray-50 space-y-4 relative group">
-                                                    <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => removeCustomQuestion(q.id)}>
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
+                                                <div key={q.id} className="group relative flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:shadow-md hover:border-indigo-300">
+                                                    <div className="text-gray-300 cursor-move hover:text-gray-500">
+                                                        <GripVertical className="w-5 h-5" />
                                                     </div>
-                                                    <div className="grid gap-4 sm:grid-cols-2">
-                                                        <div className="space-y-2">
-                                                            <Label>Question Label</Label>
-                                                            <Input
-                                                                value={q.label}
-                                                                onChange={(e) => updateCustomQuestionItem(q.id, 'label', e.target.value)}
-                                                                placeholder="e.g. What is your department?"
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="absolute top-2 right-2 h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() => removeCustomQuestion(q.id)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+
+                                                    <div className="flex-1 space-y-4">
+                                                        <div className="grid gap-4 sm:grid-cols-2">
+                                                            <div className="space-y-1.5">
+                                                                <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Field Name</Label>
+                                                                <Input
+                                                                    value={q.label}
+                                                                    onChange={(e) => updateCustomQuestionItem(q.id, 'label', e.target.value)}
+                                                                    placeholder="e.g. What is your department?"
+                                                                    className="bg-gray-50/50 border-gray-200 focus:bg-white transition-all"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Type</Label>
+                                                                <Select
+                                                                    value={q.type}
+                                                                    onValueChange={(val) => updateCustomQuestionItem(q.id, 'type', val)}
+                                                                >
+                                                                    <SelectTrigger className="bg-gray-50/50 border-gray-200 focus:bg-white">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="text">Short Text</SelectItem>
+                                                                        <SelectItem value="textarea">Long Text</SelectItem>
+                                                                        <SelectItem value="select">Dropdown</SelectItem>
+                                                                        <SelectItem value="checkbox">Checkbox</SelectItem>
+                                                                        <SelectItem value="radio">Radio</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+                                                        {(q.type === 'select' || q.type === 'radio') && (
+                                                            <div className="space-y-1.5">
+                                                                <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Options (comma separated)</Label>
+                                                                <Input
+                                                                    value={q.options?.join(', ') || ''}
+                                                                    onChange={(e) => updateCustomQuestionItem(q.id, 'options', e.target.value.split(',').map((s: string) => s.trim()))}
+                                                                    placeholder="Option 1, Option 2, Option 3"
+                                                                    className="bg-gray-50/50 border-gray-200 focus:bg-white transition-all"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex items-center space-x-2 pt-1">
+                                                            <Switch
+                                                                checked={q.required}
+                                                                onCheckedChange={(c) => updateCustomQuestionItem(q.id, 'required', c)}
                                                             />
+                                                            <Label className="text-sm font-normal text-gray-600">Required field</Label>
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label>Type</Label>
-                                                            <Select
-                                                                value={q.type}
-                                                                onValueChange={(val) => updateCustomQuestionItem(q.id, 'type', val)}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="text">Short Text</SelectItem>
-                                                                    <SelectItem value="textarea">Long Text</SelectItem>
-                                                                    <SelectItem value="select">Dropdown</SelectItem>
-                                                                    <SelectItem value="checkbox">Checkbox</SelectItem>
-                                                                    <SelectItem value="radio">Radio</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                    </div>
-                                                    {(q.type === 'select' || q.type === 'radio') && (
-                                                        <div className="space-y-2">
-                                                            <Label>Options (comma separated)</Label>
-                                                            <Input
-                                                                value={q.options?.join(', ') || ''}
-                                                                onChange={(e) => updateCustomQuestionItem(q.id, 'options', e.target.value.split(',').map((s: string) => s.trim()))}
-                                                                placeholder="Option 1, Option 2, Option 3"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center space-x-2">
-                                                        <Switch
-                                                            checked={q.required}
-                                                            onCheckedChange={(c) => updateCustomQuestionItem(q.id, 'required', c)}
-                                                        />
-                                                        <Label className="text-sm font-normal">Required</Label>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-100"></div>
-
-                                    <div className="space-y-3">
-                                        <Label>Global Allowed File Types</Label>
-                                        <Select
-                                            value={formData.allowedTypes}
-                                            onValueChange={(value) => updateField('allowedTypes', value)}
-                                        >
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select file types" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="any">Any file extension</SelectItem>
-                                                <SelectItem value="images">Images only</SelectItem>
-                                                <SelectItem value="docs">Documents only</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <Label>Global Max Upload Size</Label>
-                                        <Select
-                                            value={formData.maxSizeMB.toString()}
-                                            onValueChange={(value) => updateField('maxSizeMB', parseInt(value))}
-                                        >
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select max size" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="10">10 MB</SelectItem>
-                                                <SelectItem value="100">100 MB</SelectItem>
-                                                <SelectItem value="1024">1 GB</SelectItem>
-                                            </SelectContent>
-                                        </Select>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -622,17 +684,7 @@ function EditorContent() {
 
                                     {formData.subfolderOrganization !== "NONE" && (
                                         <div className="space-y-6 pl-4 border-l-2 border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="flex items-center justify-between">
-                                                <div className="space-y-0.5">
-                                                    <Label className="text-sm">Smart Grouping</Label>
-                                                    <p className="text-sm text-muted-foreground">Group by matching names.</p>
-                                                </div>
-                                                <Switch
-                                                    checked={formData.enableSmartGrouping}
-                                                    onCheckedChange={(c) => updateField('enableSmartGrouping', c)}
-                                                    className="data-[state=checked]:bg-indigo-600"
-                                                />
-                                            </div>
+
 
                                             <div className="space-y-3">
                                                 <Label>Subfolder Name Pattern</Label>
@@ -680,10 +732,297 @@ function EditorContent() {
                         )}
 
                         {/* Step 3: Availability & Access */}
-                        {/* Step 3: Availability & Access */}
                         {currentStep === 3 && (
                             <AccessTab formData={formData} updateField={updateField} />
                         )}
+
+                        {/* Step 4: Design */}
+                        {currentStep === 4 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <Card className="shadow-sm border-t-4 border-t-indigo-600">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">Design & Branding</CardTitle>
+                                        <p className="text-sm text-muted-foreground mt-1">Customize your form's visual appearance</p>
+                                    </CardHeader>
+                                    <CardContent className="space-y-8">
+                                        {/* Logo & Cover Image */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            {/* Logo Upload */}
+                                            <div className="space-y-3">
+                                                <Label className="text-base font-semibold text-gray-900">Logo</Label>
+                                                {formData.logoUrl ? (
+                                                    <div className="relative group w-full">
+                                                        <div className="border-2 border-gray-200 rounded-xl p-8 bg-gradient-to-br from-gray-50 to-white flex items-center justify-center min-h-[180px] transition-all group-hover:border-indigo-300 group-hover:shadow-md">
+                                                            <img src={formData.logoUrl} alt="Logo" className="max-h-24 max-w-full object-contain drop-shadow-sm" />
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="absolute -top-3 -right-3 h-9 w-9 rounded-full bg-white border-2 border-red-200 hover:border-red-500 hover:bg-red-50 text-red-600 shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                                                            onClick={removeLogo}
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <label
+                                                        className={`block border-2 border-dashed rounded-xl px-6 py-10 text-center transition-all cursor-pointer group min-h-[180px] flex flex-col items-center justify-center relative overflow-hidden ${isDraggingLogo
+                                                            ? 'border-indigo-500 bg-indigo-50 shadow-lg scale-[1.02]'
+                                                            : 'border-gray-300 hover:border-indigo-400 hover:bg-gradient-to-br hover:from-indigo-50/30 hover:to-purple-50/30 hover:shadow-md'
+                                                            }`}
+                                                        onDragOver={handleDragOver}
+                                                        onDragEnter={handleLogoDragEnter}
+                                                        onDragLeave={handleLogoDragLeave}
+                                                        onDrop={handleLogoDrop}
+                                                    >
+                                                        <div className={`absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity ${isDraggingLogo ? 'opacity-100' : ''}`}></div>
+                                                        <Upload className={`w-12 h-12 transition-all mb-3 relative z-10 ${isDraggingLogo ? 'text-indigo-600 scale-110' : 'text-gray-400 group-hover:text-indigo-600 group-hover:scale-110'
+                                                            }`} />
+                                                        <p className="text-sm font-semibold text-gray-900 mb-1 relative z-10">
+                                                            {isDraggingLogo ? 'Drop your logo here' : 'Click or drag logo here'}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 relative z-10">PNG, JPG, or SVG • Maximum 5MB</p>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                                                            onChange={handleLogoUpload}
+                                                            disabled={logoUploading}
+                                                            className="hidden"
+                                                        />
+                                                        {logoUploading && (
+                                                            <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-20">
+                                                                <BrandLoader className="w-12 h-12" />
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                )}
+                                            </div>
+
+                                            {/* Background Cover Upload */}
+                                            <div className="space-y-3">
+                                                <Label className="text-base font-semibold text-gray-900">Background Cover</Label>
+                                                {formData.coverImageUrl ? (
+                                                    <div className="relative group w-full">
+                                                        <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white min-h-[180px] transition-all group-hover:border-indigo-300 group-hover:shadow-md">
+                                                            <img src={formData.coverImageUrl} alt="Cover" className="w-full h-full object-cover min-h-[180px]" />
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="absolute -top-3 -right-3 h-9 w-9 rounded-full bg-white border-2 border-red-200 hover:border-red-500 hover:bg-red-50 text-red-600 shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                                                            onClick={() => updateField('coverImageUrl', '')}
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <label
+                                                        className={`block border-2 border-dashed rounded-xl px-6 py-10 text-center transition-all cursor-pointer group min-h-[180px] flex flex-col items-center justify-center relative overflow-hidden ${isDraggingCover
+                                                            ? 'border-indigo-500 bg-indigo-50 shadow-lg scale-[1.02]'
+                                                            : 'border-gray-300 hover:border-indigo-400 hover:bg-gradient-to-br hover:from-indigo-50/30 hover:to-purple-50/30 hover:shadow-md'
+                                                            }`}
+                                                        onDragOver={handleDragOver}
+                                                        onDragEnter={handleCoverDragEnter}
+                                                        onDragLeave={handleCoverDragLeave}
+                                                        onDrop={handleCoverDrop}
+                                                    >
+                                                        <div className={`absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity ${isDraggingCover ? 'opacity-100' : ''}`}></div>
+                                                        <Upload className={`w-12 h-12 transition-all mb-3 relative z-10 ${isDraggingCover ? 'text-indigo-600 scale-110' : 'text-gray-400 group-hover:text-indigo-600 group-hover:scale-110'
+                                                            }`} />
+                                                        <p className="text-sm font-semibold text-gray-900 mb-1 relative z-10">
+                                                            {isDraggingCover ? 'Drop your cover here' : 'Click or drag cover image here'}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 relative z-10">Recommended: 1920×1080px (16:9 aspect ratio)</p>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/png,image/jpeg,image/jpg"
+                                                            onChange={handleCoverUpload}
+                                                            disabled={logoUploading}
+                                                            className="hidden"
+                                                        />
+                                                        {logoUploading && (
+                                                            <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-20">
+                                                                <BrandLoader className="w-12 h-12" />
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="border-t border-gray-200"></div>
+
+                                        {/* Button Style & Card Style */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            {/* Button Style */}
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <Label className="text-base font-semibold text-gray-900">Button Style</Label>
+                                                    <p className="text-xs text-gray-500 mt-1">Choose how buttons appear on your form</p>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {[
+                                                        {
+                                                            label: 'Solid',
+                                                            value: 'solid',
+                                                            preview: 'bg-indigo-600 text-white border-2 border-indigo-600'
+                                                        },
+                                                        {
+                                                            label: 'Outline',
+                                                            value: 'outline',
+                                                            preview: 'bg-white text-indigo-600 border-2 border-indigo-600'
+                                                        },
+                                                        {
+                                                            label: 'Ghost',
+                                                            value: 'ghost',
+                                                            preview: 'bg-transparent text-indigo-600 border-2 border-transparent hover:bg-indigo-50'
+                                                        },
+                                                        {
+                                                            label: 'Gradient',
+                                                            value: 'gradient',
+                                                            preview: 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-2 border-transparent'
+                                                        },
+                                                    ].map((option) => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            onClick={() => updateField('buttonTextColor', option.value)}
+                                                            className={`p-4 border-2 rounded-xl transition-all duration-200 group ${formData.buttonTextColor === option.value
+                                                                ? 'border-indigo-600 bg-indigo-50 shadow-md scale-[1.02]'
+                                                                : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                                                                }`}
+                                                        >
+                                                            <div className="text-xs font-semibold text-gray-900 mb-3">{option.label}</div>
+                                                            <div className={`h-8 rounded-lg flex items-center justify-center text-[10px] font-medium transition-all ${option.preview}`}>
+                                                                Button
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Card Style */}
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <Label className="text-base font-semibold text-gray-900">Card Style</Label>
+                                                    <p className="text-xs text-gray-500 mt-1">Choose how form cards are displayed</p>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    {[
+                                                        {
+                                                            label: 'Shadow',
+                                                            value: 'shadow',
+                                                            preview: 'shadow-lg border border-gray-100'
+                                                        },
+                                                        {
+                                                            label: 'Border',
+                                                            value: 'border',
+                                                            preview: 'border-2 border-gray-300'
+                                                        },
+                                                        {
+                                                            label: 'Flat',
+                                                            value: 'flat',
+                                                            preview: 'border border-gray-200'
+                                                        },
+                                                    ].map((option) => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            onClick={() => updateField('cardStyle', option.value as "shadow" | "flat" | "border")}
+                                                            className={`p-4 border-2 rounded-xl transition-all duration-200 group ${formData.cardStyle === option.value
+                                                                ? 'border-indigo-600 bg-indigo-50 shadow-md scale-[1.02]'
+                                                                : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                                                                }`}
+                                                        >
+                                                            <div className="text-[10px] font-semibold text-gray-900 mb-2">{option.label}</div>
+                                                            <div className={`h-12 rounded-lg bg-white ${option.preview}`}></div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Live Preview Card */}
+                                <Card className="shadow-sm border-indigo-100">
+                                    <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                    <Eye className="w-5 h-5 text-indigo-600" />
+                                                    Live Preview
+                                                </CardTitle>
+                                                <p className="text-sm text-muted-foreground mt-1">See how your form will appear to users</p>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-6">
+                                        {/* Preview Container */}
+                                        <div className="bg-gray-100 rounded-xl p-8 min-h-[400px] relative overflow-hidden">
+                                            {/* Cover Image Preview */}
+                                            {formData.coverImageUrl && (
+                                                <div className="absolute top-0 left-0 right-0 h-32 overflow-hidden rounded-t-xl">
+                                                    <img src={formData.coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-100"></div>
+                                                </div>
+                                            )}
+
+                                            {/* Form Preview Content */}
+                                            <div className={`relative ${formData.coverImageUrl ? 'mt-20' : ''}`}>
+                                                {/* Logo Preview */}
+                                                {formData.logoUrl && (
+                                                    <div className="flex justify-center mb-6">
+                                                        <img src={formData.logoUrl} alt="Logo" className="max-h-16 object-contain drop-shadow-md" />
+                                                    </div>
+                                                )}
+
+                                                {/* Sample Form Card */}
+                                                <div className={`max-w-md mx-auto bg-white rounded-xl p-6 ${formData.cardStyle === 'shadow' ? 'shadow-xl border border-gray-100' :
+                                                    formData.cardStyle === 'border' ? 'border-2 border-gray-300' :
+                                                        'border border-gray-200'
+                                                    }`}>
+                                                    <h3 className="text-xl font-bold text-gray-900 mb-2">{formData.title || 'Your Form Title'}</h3>
+                                                    <p className="text-sm text-gray-600 mb-6">{formData.description || 'Form description will appear here'}</p>
+
+                                                    {/* Sample Input */}
+                                                    <div className="space-y-4 mb-6">
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium text-gray-700">Sample Field</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Enter text..."
+                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                disabled
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Sample Button Preview */}
+                                                    <button
+                                                        className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${formData.buttonTextColor === 'solid' ? 'bg-indigo-600 text-white border-2 border-indigo-600 hover:bg-indigo-700' :
+                                                            formData.buttonTextColor === 'outline' ? 'bg-white text-indigo-600 border-2 border-indigo-600 hover:bg-indigo-50' :
+                                                                formData.buttonTextColor === 'ghost' ? 'bg-transparent text-indigo-600 border-2 border-transparent hover:bg-indigo-50' :
+                                                                    formData.buttonTextColor === 'gradient' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-2 border-transparent hover:from-indigo-700 hover:to-purple-700' :
+                                                                        'bg-indigo-600 text-white'
+                                                            }`}
+                                                        disabled
+                                                    >
+                                                        Submit Button
+                                                    </button>
+                                                </div>
+
+                                                {/* Preview Note */}
+                                                <p className="text-xs text-center text-gray-500 mt-6 italic">
+                                                    This is a preview. Changes are applied in real-time.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+
 
                         {/* Wizard Navigation */}
                         <div className="flex justify-between items-center pt-4">
@@ -824,7 +1163,7 @@ function EditorContent() {
                                                     <Label className="text-sm font-medium text-gray-700">Who can respond?</Label>
                                                     <RadioGroup
                                                         value={formData.accessLevel}
-                                                        onValueChange={(val) => updateField('accessLevel', val)}
+                                                        onValueChange={(val) => updateField('accessLevel', val as "ANYONE" | "INVITED")}
                                                         className="grid grid-cols-2 gap-4"
                                                     >
                                                         <div className={`relative flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${formData.accessLevel === 'ANYONE' ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
@@ -886,238 +1225,24 @@ function EditorContent() {
                             </div>
                         </div>
 
-                        {/* Step 4: Visual Customization */}
-                        {currentStep === 4 && (
-                            <Card className="shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
-                                <CardHeader>
-                                    <CardTitle className="text-lg">Visual Customization</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-8">
-                                    <div className="space-y-4">
-                                        <Label className="text-sm font-medium text-gray-700">Form Logo</Label>
-                                        {formData.logoUrl ? (
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img src={formData.logoUrl} alt="Form logo" className="h-16 w-16 object-contain rounded" />
-                                                    <div className="flex-1">
-                                                        <p className="text-sm font-medium text-gray-900">Logo uploaded</p>
-                                                        <p className="text-xs text-gray-500">Displayed on public form</p>
-                                                    </div>
-                                                    <Button variant="outline" size="sm" onClick={removeLogo}>
-                                                        Remove
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-6">
-                                                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group">
-                                                    <Upload className="w-8 h-8 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Input
-                                                        id="logo-upload"
-                                                        type="file"
-                                                        accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                                                        onChange={handleLogoUpload}
-                                                        className="hidden"
-                                                    />
-                                                    <Button
-                                                        variant="outline"
-                                                        type="button"
-                                                        onClick={() => document.getElementById('logo-upload')?.click()}
-                                                        disabled={logoUploading}
-                                                    >
-                                                        {logoUploading ? 'Uploading...' : 'Upload Logo'}
-                                                    </Button>
-                                                    <p className="text-xs text-muted-foreground">PNG, JPG, or SVG (Max 2MB)</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="border-t border-gray-100"></div>
-
-                                    <div className="grid sm:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <Label className="text-sm">Primary Color</Label>
-                                            <div className="flex gap-3 items-center">
-                                                <div className="w-10 h-10 rounded-lg shadow-sm border border-gray-200" style={{ backgroundColor: formData.primaryColor }}></div>
-                                                <Input
-                                                    type="color"
-                                                    value={formData.primaryColor}
-                                                    onChange={(e) => updateField('primaryColor', e.target.value)}
-                                                    className="w-full h-10 p-1 cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <Label className="text-sm">Background Color</Label>
-                                            <div className="flex gap-3 items-center">
-                                                <div className="w-10 h-10 rounded-lg shadow-sm border border-gray-200" style={{ backgroundColor: formData.backgroundColor }}></div>
-                                                <Input
-                                                    type="color"
-                                                    value={formData.backgroundColor}
-                                                    onChange={(e) => updateField('backgroundColor', e.target.value)}
-                                                    className="w-full h-10 p-1 cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-100"></div>
-
-                                    <div className="space-y-4">
-                                        <Label className="text-sm">Typography</Label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                            {[
-                                                { name: "Inter", style: " Sans-serif" },
-                                                { name: "Roboto", style: "Classic" },
-                                                { name: "Merriweather", style: "Serif" }
-                                            ].map((font, i) => (
-                                                <div
-                                                    key={i}
-                                                    className={`
-                                                            flex flex-col p-3 rounded-lg border cursor-pointer transition-all
-                                                            ${formData.fontFamily === font.name
-                                                            ? "border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600"
-                                                            : "border-gray-200 hover:bg-gray-50"
-                                                        }
-                                                        `}
-                                                    onClick={() => updateField('fontFamily', font.name)}
-                                                >
-                                                    <span className="font-semibold text-gray-900" style={{ fontFamily: font.name }}>Aa</span>
-                                                    <span className="text-sm mt-1">{font.name}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-100"></div>
-
-                                    <div className="grid sm:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <Label className="text-sm">Button Text Color</Label>
-                                            <div className="flex gap-3 items-center">
-                                                <div className="w-10 h-10 rounded-lg shadow-sm border border-gray-200" style={{ backgroundColor: formData.buttonTextColor }}></div>
-                                                <Input
-                                                    type="color"
-                                                    value={formData.buttonTextColor}
-                                                    onChange={(e) => updateField('buttonTextColor', e.target.value)}
-                                                    className="w-full h-10 p-1 cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <Label className="text-sm">Border Radius</Label>
-                                            <Select value={formData.borderRadius} onValueChange={(val) => updateField('borderRadius', val)}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select radius" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">None (Square)</SelectItem>
-                                                    <SelectItem value="sm">Small</SelectItem>
-                                                    <SelectItem value="md">Medium (Default)</SelectItem>
-                                                    <SelectItem value="lg">Large</SelectItem>
-                                                    <SelectItem value="full">Full (Pill)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <Label className="text-sm">Card Style</Label>
-                                        <RadioGroup value={formData.cardStyle} onValueChange={(val) => updateField('cardStyle', val)} className="grid grid-cols-3 gap-4">
-                                            <div>
-                                                <RadioGroupItem value="shadow" id="style-shadow" className="peer sr-only" />
-                                                <Label
-                                                    htmlFor="style-shadow"
-                                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                                                >
-                                                    <div className="mb-2 h-10 w-full rounded-md bg-gray-100 shadow-lg" />
-                                                    Shadow
-                                                </Label>
-                                            </div>
-                                            <div>
-                                                <RadioGroupItem value="flat" id="style-flat" className="peer sr-only" />
-                                                <Label
-                                                    htmlFor="style-flat"
-                                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                                                >
-                                                    <div className="mb-2 h-10 w-full rounded-md bg-gray-100" />
-                                                    Flat
-                                                </Label>
-                                            </div>
-                                            <div>
-                                                <RadioGroupItem value="border" id="style-border" className="peer sr-only" />
-                                                <Label
-                                                    htmlFor="style-border"
-                                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                                                >
-                                                    <div className="mb-2 h-10 w-full rounded-md border border-gray-300" />
-                                                    Bordered
-                                                </Label>
-                                            </div>
-                                        </RadioGroup>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
                     </div>
                 </div>
-            </div>
 
-            {/* Message Modal */}
-            {
-                messageModal.isOpen && (
-                    <div
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-                        onClick={() => setMessageModal(prev => ({ ...prev, isOpen: false }))}
-                    >
-                        <div
-                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Close Button */}
-                            <button
-                                onClick={() => setMessageModal(prev => ({ ...prev, isOpen: false }))}
-                                className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
-                                aria-label="Close"
-                            >
-                                <X className="w-5 h-5 text-gray-500" />
-                            </button>
-
-                            <div className="flex justify-center mb-4">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center ${messageModal.type === 'error' ? 'bg-red-100' : 'bg-green-100'}`}>
-                                    {messageModal.type === 'error' ? (
-                                        <AlertTriangle className="w-8 h-8 text-red-600" />
-                                    ) : (
-                                        <CheckCircle className="w-8 h-8 text-green-600" />
-                                    )}
-                                </div>
-                            </div>
-
-                            <h3 className="text-2xl font-bold text-gray-900 text-center mb-3">
+                {/* Message Modal */}
+                <Dialog open={messageModal.isOpen} onOpenChange={(open) => setMessageModal(prev => ({ ...prev, isOpen: open }))}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle className={messageModal.type === 'error' ? 'text-red-600' : 'text-green-600'}>
                                 {messageModal.title}
-                            </h3>
-
-                            <p className="text-gray-600 text-center mb-6 leading-relaxed">
+                            </DialogTitle>
+                            <DialogDescription>
                                 {messageModal.message}
-                            </p>
-
-                            <div className="flex justify-center">
-                                <Button
-                                    onClick={() => setMessageModal(prev => ({ ...prev, isOpen: false }))}
-                                    className={`min-w-[120px] h-11 ${messageModal.type === 'error' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                                >
-                                    Okay
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-        </div >
+                            </DialogDescription>
+                        </DialogHeader>
+                    </DialogContent>
+                </Dialog>
+            </div>
+        </div>
     )
 }
 
