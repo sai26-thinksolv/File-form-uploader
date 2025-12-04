@@ -18,6 +18,13 @@ export interface EditorFormData {
     accessLevel: "ANYONE" | "INVITED";
     allowedEmails: string;
     emailFieldControl: "REQUIRED" | "OPTIONAL" | "NOT_INCLUDED";
+    accessProtectionType: "PUBLIC" | "PASSWORD" | "GOOGLE";
+    password?: string;
+    // New optional keys for backend compatibility
+    accessProtection?: 'public' | 'password' | 'google_oauth';
+    inviteCodeHash?: string;
+    allowedDomains?: string[];
+    driveIntegrationEnabled?: boolean;
 
     // Organization
     enableMetadataSpreadsheet: boolean;
@@ -55,4 +62,7 @@ export interface CustomQuestion {
     label: string;
     required: boolean;
     options?: string[];
+    placeholder?: string;
+    wordLimit?: number;
+    allowOther?: boolean;
 }

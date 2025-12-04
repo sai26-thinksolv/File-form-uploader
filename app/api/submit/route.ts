@@ -17,8 +17,6 @@ export async function POST(request: Request) {
             metadata
         } = body;
 
-        console.log("Submit API received body:", body);
-
         if (!formId) {
             console.error("Missing form ID");
             return NextResponse.json(
@@ -45,8 +43,6 @@ export async function POST(request: Request) {
                 size: firstFile.size || firstFile.fileSize
             };
         }
-
-        console.log("Primary File extracted:", primaryFile);
 
         if (!primaryFile.url || !primaryFile.name) {
             console.error("Missing file data for primary file", primaryFile);

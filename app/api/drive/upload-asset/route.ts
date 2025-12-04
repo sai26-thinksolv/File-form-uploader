@@ -94,22 +94,26 @@ export async function POST(req: NextRequest) {
 
         const fileId = fileRes.data.id!
 
-        // 3. Make Public
+        // 3. Make Public - with supportsAllDrives for better compatibility
         await drive.permissions.create({
             fileId: fileId,
             requestBody: {
                 role: 'reader',
                 type: 'anyone'
-            }
+            },
+            supportsAllDrives: true
         })
 
         // 4. Return URL
-        // webContentLink usually forces download. 
-        // A direct link for images can be constructed: https://drive.google.com/uc?export=view&id=FILE_ID
-        const publicUrl = `https://drive.google.com/uc?export=view&id=${fileId}`
+        // Use our local proxy to serve the image. This avoids 403s and broken images.
+        // The file is still on Drive, but we serve it through our app.
+        const proxyUrl = `/api/images/${fileId}`
+
+        const viewUrl = `https://drive.google.com/file/d/${fileId}/view`
 
         return NextResponse.json({
-            url: publicUrl,
+            url: proxyUrl,
+            viewUrl: viewUrl,
             fileId: fileId,
             folderId: finalParentId
         })

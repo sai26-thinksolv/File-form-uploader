@@ -1,0 +1,17 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/node_modules": true,
+        "**/.next": true,
+        "**/tsconfig.tsbuildinfo": true,
+        "**/next-env.d.ts": true,
+        "**/package-lock.json": true
+    },
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+        "package.json": "package-lock.json, tsconfig.json, tsconfig.tsbuildinfo, next-env.d.ts, next.config.ts, eslint.config.mjs, postcss.config.mjs, .gitignore",
+        "README.md": "*.md",
+        ".env": ".env*, env.example"
+    }
+}
