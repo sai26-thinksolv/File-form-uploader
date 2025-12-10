@@ -12,6 +12,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loader2, UploadCloud, CheckCircle, Lock, RefreshCcw, X, File, AlertCircle, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// @ts-ignore
+declare module 'react' {
+    interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
+        webkitdirectory?: string | boolean;
+        mozdirectory?: string | boolean;
+        directory?: string | boolean;
+    }
+}
+
 // Types
 interface UploadField {
     id: string
@@ -105,7 +114,7 @@ const FileDropzone = ({
     return (
         <div className="space-y-3">
             <Label className="text-base font-medium">{label}</Label>
-            
+
             {/* Dropzone */}
             <div
                 {...getRootProps()}
@@ -119,7 +128,33 @@ const FileDropzone = ({
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <UploadCloud className="w-8 h-8" />
                     <p className="font-medium">Drag & drop files or click to select</p>
-                    <p className="text-xs text-gray-400">You can upload multiple files</p>
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <span>You can upload multiple files</span>
+                        <span>•</span>
+                        <div className="relative">
+                            <input
+                                type="file"
+                                webkitdirectory=""
+                                mozdirectory=""
+                                directory=""
+                                multiple
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                onChange={(e) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                        const fileList = Array.from(e.target.files)
+                                        // Filter out system files if needed, but for now take all
+                                        onDrop(fileList)
+                                        // Reset value so same folder can be selected again if needed
+                                        e.target.value = ''
+                                    }
+                                }}
+                                onClick={(e) => e.stopPropagation()} // Prevent dropzone click
+                            />
+                            <span className="text-primary hover:underline cursor-pointer">
+                                Upload a folder
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -156,7 +191,7 @@ const FileDropzone = ({
                             const isUploading = uploading && progress !== undefined && progress < 100
                             const isComplete = progress === 100
                             const hasError = !!errors?.[index]
-                            
+
                             return (
                                 <div
                                     key={`${file.name}-${index}`}
@@ -165,10 +200,10 @@ const FileDropzone = ({
                                         hasError
                                             ? "bg-red-50 border-red-200"
                                             : isComplete
-                                            ? "bg-green-50 border-green-200"
-                                            : isUploading
-                                            ? "bg-blue-50 border-blue-200"
-                                            : "bg-gray-50 border-gray-200"
+                                                ? "bg-green-50 border-green-200"
+                                                : isUploading
+                                                    ? "bg-blue-50 border-blue-200"
+                                                    : "bg-gray-50 border-gray-200"
                                     )}
                                 >
                                     <div className="flex-shrink-0 text-2xl">{getFileIcon(file)}</div>
@@ -219,8 +254,8 @@ const FileDropzone = ({
                                             hasError
                                                 ? "text-red-600 hover:text-red-800 hover:bg-red-100"
                                                 : isComplete
-                                                ? "text-green-600 hover:text-green-800 hover:bg-green-100"
-                                                : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                                                    ? "text-green-600 hover:text-green-800 hover:bg-green-100"
+                                                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
                                         )}
                                         onClick={(e) => {
                                             e.stopPropagation()
@@ -447,10 +482,10 @@ export default function UploadForm({ isPreview = false, formId, initialData }: {
             // Upload each file for each field
             for (const field of config.uploadFields || []) {
                 const fieldFiles = files[field.id] || []
-                
+
                 for (let index = 0; index < fieldFiles.length; index++) {
                     const file = fieldFiles[index]
-                    
+
                     try {
                         // Update progress
                         setUploadProgress(prev => ({
@@ -473,15 +508,15 @@ export default function UploadForm({ isPreview = false, formId, initialData }: {
                         if (!uploadRes.ok) {
                             const errorData = await uploadRes.json()
                             const errorMsg = errorData.details || errorData.error || `Upload failed for ${file.name}`
-                            
+
                             // Store error for this specific file
                             if (!errors[field.id]) errors[field.id] = {}
                             errors[field.id][index] = errorMsg
-                            
+
                             // Continue with other files instead of throwing
                             continue
                         }
-                        
+
                         const uploadData = await uploadRes.json()
 
                         uploadedFiles.push({

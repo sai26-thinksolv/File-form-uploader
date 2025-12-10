@@ -90,7 +90,7 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
             const tokenResponse = await fetch('/api/drive/token');
             if (!tokenResponse.ok) {
                 const errorData = await tokenResponse.json().catch(() => ({}));
-                
+
                 // If re-authentication is required, show helpful message
                 if (errorData.requiresReauth) {
                     const message = errorData.error || 'Authentication required';
@@ -98,7 +98,7 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
                     setIsLoading(false);
                     return;
                 }
-                
+
                 throw new Error(errorData.error || errorData.details || 'Failed to get access token. Please sign in with Google.');
             }
 
@@ -141,16 +141,16 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
                 googleAvailable: !!window.google,
                 pickerAvailable: !!window.google?.picker
             });
-            
+
             // Provide helpful error message
             let errorMessage = error.message || 'Failed to open folder picker.';
-            
+
             if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
                 errorMessage = 'Google Picker API access denied.\n\nPlease check:\n1. Google Picker API is enabled in Google Cloud Console\n2. API key has correct restrictions\n3. You are signed in with Google\n4. Try signing out and signing in again';
             } else if (error.message?.includes('token') || error.message?.includes('auth')) {
                 errorMessage = 'Authentication error.\n\nPlease:\n1. Sign out from your account\n2. Sign in again with Google\n3. Grant Drive permissions when prompted\n4. Try the picker again';
             }
-            
+
             alert(errorMessage);
         } finally {
             setIsLoading(false);
@@ -206,7 +206,9 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
                     {formData.driveFolderName ? (
                         <p className="text-sm text-muted-foreground">Files will be saved to your selected folder.</p>
                     ) : (
-                        <p className="text-sm text-muted-foreground">A new folder will be created automatically for this form.</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Files will be stored in the &quot;File Uploader Pro&quot; folder.
+                        </p>
                     )}
                 </div>
 

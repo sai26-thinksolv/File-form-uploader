@@ -37,7 +37,9 @@ export async function PUT(
         const body = await request.json();
 
         // Remove readonly/computed fields that shouldn't be updated
-        const { id, createdAt, updatedAt, submissions, ...updateData } = body;
+        const { id, createdAt, updatedAt, submissions, user, userId, ...updateData } = body;
+
+        console.log('Update Data Keys:', Object.keys(updateData));
 
         // Ensure JSON fields have proper defaults and are stringified for SQLite
         if ('uploadFields' in updateData) {
@@ -64,6 +66,11 @@ export async function PUT(
         return NextResponse.json(form);
     } catch (error) {
         console.error('Error updating form:', error);
+        // @ts-ignore
+        if (error.meta) {
+            // @ts-ignore
+            console.error('Prisma error meta:', error.meta);
+        }
         return NextResponse.json(
             { error: 'Failed to update form', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
