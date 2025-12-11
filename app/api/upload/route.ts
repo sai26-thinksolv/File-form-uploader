@@ -41,10 +41,43 @@ export async function POST(request: Request) {
             mimeType: file.type,
         };
 
-        // If a specific folder is selected, upload to it
-        if (form.driveFolderId) {
-            fileMetadata.parents = [form.driveFolderId];
+        // Determine the root parent (either specific folder or root)
+        const rootParentId = form.driveFolderId || null;
+
+        // Ensure "File Uploader Pro" folder exists inside the root parent
+        let targetFolderId = rootParentId;
+
+        // Search for "File Uploader Pro" folder
+        const q = `name = 'File Uploader Pro' and mimeType = 'application/vnd.google-apps.folder' and trashed = false${rootParentId ? ` and '${rootParentId}' in parents` : ''}`;
+
+        const folderResponse = await drive.files.list({
+            q: q,
+            fields: 'files(id)',
+            pageSize: 1
+        });
+
+        if (folderResponse.data.files && folderResponse.data.files.length > 0) {
+            // Folder exists
+            targetFolderId = folderResponse.data.files[0].id!;
+        } else {
+            // Create folder
+            const folderMetadata: any = {
+                name: 'File Uploader Pro',
+                mimeType: 'application/vnd.google-apps.folder',
+            };
+            if (rootParentId) {
+                folderMetadata.parents = [rootParentId];
+            }
+
+            const folder = await drive.files.create({
+                requestBody: folderMetadata,
+                fields: 'id'
+            });
+            targetFolderId = folder.data.id!;
         }
+
+        // Set the parent to the target folder
+        fileMetadata.parents = [targetFolderId];
 
         // Upload to Drive
         const response = await drive.files.create({

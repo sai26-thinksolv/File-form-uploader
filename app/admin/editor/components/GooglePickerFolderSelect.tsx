@@ -27,30 +27,59 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
     useEffect(() => {
         // Load the Google Picker API
         const loadGooglePicker = () => {
+            // Check if already loaded
+            if (window.gapi && window.google) {
+                window.gapi.load('picker', () => {
+                    setPickerReady(true);
+                });
+                return;
+            }
+
+            // Load Google API script
             const script1 = document.createElement('script');
             script1.src = 'https://apis.google.com/js/api.js';
             script1.async = true;
             script1.defer = true;
             script1.onload = () => {
-                window.gapi.load('picker', () => {
-                    setPickerReady(true);
-                });
+                if (window.gapi) {
+                    window.gapi.load('picker', {
+                        callback: () => {
+                            console.log('Google Picker API loaded successfully');
+                            setPickerReady(true);
+                        },
+                        onerror: (error: any) => {
+                            console.error('Failed to load Google Picker:', error);
+                        }
+                    });
+                }
+            };
+            script1.onerror = () => {
+                console.error('Failed to load Google API script');
             };
             document.body.appendChild(script1);
         };
 
-        if (!window.gapi) {
-            loadGooglePicker();
-        } else {
-            window.gapi.load('picker', () => {
-                setPickerReady(true);
-            });
-        }
+        loadGooglePicker();
     }, []);
 
     const openPicker = async () => {
         if (!pickerReady) {
             alert('Google Picker is still loading. Please try again in a moment.');
+            return;
+        }
+
+        // Check if Google Picker API is actually available
+        if (!window.google || !window.google.picker) {
+            console.error('Google Picker API not available');
+            alert('Google Picker API failed to load. Please refresh the page and try again.');
+            return;
+        }
+
+        // Check if API key is configured
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+        if (!apiKey || apiKey.trim() === '') {
+            console.error('Google API Key is missing');
+            alert('Google API Key is not configured. Please add NEXT_PUBLIC_GOOGLE_API_KEY to your .env file and restart the server.');
             return;
         }
 
@@ -60,10 +89,32 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
             // Get the access token from the session
             const tokenResponse = await fetch('/api/drive/token');
             if (!tokenResponse.ok) {
-                throw new Error('Failed to get access token. Please sign in with Google.');
+                const errorData = await tokenResponse.json().catch(() => ({}));
+
+                // If re-authentication is required, show helpful message
+                if (errorData.requiresReauth) {
+                    const message = errorData.error || 'Authentication required';
+                    alert(`${message}\n\nPlease:\n1. Sign out from your account\n2. Sign in again with Google\n3. Grant Drive permissions\n4. Try the picker again`);
+                    setIsLoading(false);
+                    return;
+                }
+
+                throw new Error(errorData.error || errorData.details || 'Failed to get access token. Please sign in with Google.');
             }
 
-            const { accessToken } = await tokenResponse.json();
+            const { accessToken, refreshed } = await tokenResponse.json();
+
+            if (!accessToken) {
+                throw new Error('No access token received. Please sign out and sign in again with Google to grant Drive permissions.');
+            }
+
+            if (refreshed) {
+                console.log('✅ Access token refreshed successfully');
+            }
+
+            console.log('Opening Google Picker with API key:', apiKey.substring(0, 10) + '...');
+            console.log('Access token present:', !!accessToken);
+            console.log('Origin:', window.location.protocol + '//' + window.location.host);
 
             // Create and show the picker
             const picker = new window.google.picker.PickerBuilder()
@@ -73,26 +124,52 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
                         .setMimeTypes('application/vnd.google-apps.folder')
                 )
                 .setOAuthToken(accessToken)
-                .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '')
+                .setDeveloperKey(apiKey)
                 .setCallback(pickerCallback)
                 .setTitle('Select Destination Folder')
+                .setOrigin(window.location.origin) // Use origin instead of protocol + host
                 .build();
 
             picker.setVisible(true);
         } catch (error: any) {
             console.error('Error opening picker:', error);
-            alert(error.message || 'Failed to open folder picker. Please make sure you are signed in with Google.');
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                apiKey: apiKey ? 'Present' : 'Missing',
+                pickerReady,
+                googleAvailable: !!window.google,
+                pickerAvailable: !!window.google?.picker
+            });
+
+            // Provide helpful error message
+            let errorMessage = error.message || 'Failed to open folder picker.';
+
+            if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+                errorMessage = 'Google Picker API access denied.\n\nPlease check:\n1. Google Picker API is enabled in Google Cloud Console\n2. API key has correct restrictions\n3. You are signed in with Google\n4. Try signing out and signing in again';
+            } else if (error.message?.includes('token') || error.message?.includes('auth')) {
+                errorMessage = 'Authentication error.\n\nPlease:\n1. Sign out from your account\n2. Sign in again with Google\n3. Grant Drive permissions when prompted\n4. Try the picker again';
+            }
+
+            alert(errorMessage);
         } finally {
             setIsLoading(false);
         }
     };
 
     const pickerCallback = (data: any) => {
+        console.log('Picker callback:', data);
+
         if (data.action === window.google.picker.Action.PICKED) {
             const folder = data.docs[0];
+            console.log('Folder selected:', folder);
             updateField('driveFolderId', folder.id);
             updateField('driveFolderName', folder.name);
             updateField('driveFolderUrl', folder.url);
+        } else if (data.action === window.google.picker.Action.CANCEL) {
+            console.log('Picker cancelled by user');
+        } else {
+            console.warn('Unknown picker action:', data.action);
         }
     };
 
@@ -129,7 +206,9 @@ export function GooglePickerFolderSelect({ formData, updateField }: GooglePicker
                     {formData.driveFolderName ? (
                         <p className="text-sm text-muted-foreground">Files will be saved to your selected folder.</p>
                     ) : (
-                        <p className="text-sm text-muted-foreground">A new folder will be created automatically for this form.</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Files will be stored in the &quot;File Uploader Pro&quot; folder.
+                        </p>
                     )}
                 </div>
 

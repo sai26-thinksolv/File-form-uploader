@@ -36,34 +36,42 @@ export async function PUT(
         const { formId } = await params;
         const body = await request.json();
 
-        // Remove readonly/computed fields that shouldn't be updated
-        const { id, createdAt, updatedAt, submissions, ...updateData } = body;
+        // Whitelist allowed fields to prevent "Unknown argument" errors
+        const ALLOWED_FIELDS = [
+            'title', 'description', 'logoUrl', 'primaryColor', 'secondaryColor',
+            'backgroundColor', 'fontFamily', 'buttonTextColor', 'cardStyle',
+            'borderRadius', 'coverImageUrl', 'allowedTypes', 'maxSizeMB',
+            'driveEnabled', 'driveFolderId', 'driveFolderName', 'driveFolderUrl',
+            'isPasswordProtected', 'password', 'isCaptchaEnabled', 'enableSubmitAnother',
+            'isPublished', 'isAcceptingResponses', 'expiryDate', 'accessLevel',
+            'allowedEmails', 'emailFieldControl', 'enableMetadataSpreadsheet',
+            'subfolderOrganization', 'customSubfolderField', 'enableSmartGrouping',
+            'uploadFields', 'customQuestions'
+        ];
 
-        // Ensure JSON fields have proper defaults and are stringified for SQLite
-        if ('uploadFields' in updateData) {
-            if (!updateData.uploadFields) {
-                updateData.uploadFields = JSON.stringify([]);
-            } else if (typeof updateData.uploadFields !== 'string') {
-                updateData.uploadFields = JSON.stringify(updateData.uploadFields);
+        // Filter body to only include allowed fields
+        const updateData: any = {};
+        for (const key of Object.keys(body)) {
+            if (ALLOWED_FIELDS.includes(key)) {
+                updateData[key] = body[key];
             }
         }
 
-        if ('customQuestions' in updateData) {
-            if (!updateData.customQuestions) {
-                updateData.customQuestions = JSON.stringify([]);
-            } else if (typeof updateData.customQuestions !== 'string') {
-                updateData.customQuestions = JSON.stringify(updateData.customQuestions);
-            }
-        }
+        console.log('Filtered Update Data Keys:', Object.keys(updateData));
 
         const form = await prisma.form.update({
             where: { id: formId },
-            data: updateData as any,
+            data: updateData,
         });
 
         return NextResponse.json(form);
     } catch (error) {
         console.error('Error updating form:', error);
+        // @ts-ignore
+        if (error.meta) {
+            // @ts-ignore
+            console.error('Prisma error meta:', error.meta);
+        }
         return NextResponse.json(
             { error: 'Failed to update form', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
