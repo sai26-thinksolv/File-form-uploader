@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, UploadCloud, CheckCircle, Lock, RefreshCcw, X, File, AlertCircle, Trash2 } from "lucide-react"
+import { Loader2, UploadCloud, CheckCircle, Lock, RefreshCcw, AlertCircle, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { BsFileEarmarkPdf, BsFileEarmarkWord, BsFileEarmarkExcel, BsImage, BsFileEarmarkPlay, BsFileEarmarkMusic, BsFileEarmarkZip, BsFileEarmark } from "react-icons/bs"
 
 // @ts-ignore
 declare module 'react' {
@@ -101,14 +102,19 @@ const FileDropzone = ({
     }
 
     const getFileIcon = (file: File) => {
-        const type = file.type.split('/')[0]
-        if (type === 'image') return '🖼️'
-        if (type === 'video') return '🎥'
-        if (type === 'audio') return '🎵'
-        if (file.type.includes('pdf')) return '📄'
-        if (file.type.includes('word')) return '📝'
-        if (file.type.includes('excel') || file.type.includes('spreadsheet')) return '📊'
-        return '📎'
+        const type = file.type
+        const style = { color: 'rgb(79, 70, 229)' }
+        const className = "w-8 h-8"
+
+        if (type.includes('image')) return <BsImage style={style} className={className} />
+        if (type.includes('video')) return <BsFileEarmarkPlay style={style} className={className} />
+        if (type.includes('audio')) return <BsFileEarmarkMusic style={style} className={className} />
+        if (type.includes('pdf')) return <BsFileEarmarkPdf style={style} className={className} />
+        if (type.includes('word') || type.includes('document')) return <BsFileEarmarkWord style={style} className={className} />
+        if (type.includes('excel') || type.includes('spreadsheet') || type.includes('csv')) return <BsFileEarmarkExcel style={style} className={className} />
+        if (type.includes('zip') || type.includes('compressed')) return <BsFileEarmarkZip style={style} className={className} />
+
+        return <BsFileEarmark style={style} className={className} />
     }
 
     return (
@@ -206,7 +212,7 @@ const FileDropzone = ({
                                                     : "bg-gray-50 border-gray-200"
                                     )}
                                 >
-                                    <div className="flex-shrink-0 text-2xl">{getFileIcon(file)}</div>
+                                    <div className="flex-shrink-0">{getFileIcon(file)}</div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <p className={cn(
